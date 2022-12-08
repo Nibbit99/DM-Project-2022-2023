@@ -92,9 +92,6 @@ if __name__ == '__main__':
         clusters = kmeans.labels_
         centroids = kmeans.cluster_centers_
         
-        """
-        clusterPlot(X_standardized_test, clusters, centroids, y)
-        plt.show()
-        """
+        
     
     
