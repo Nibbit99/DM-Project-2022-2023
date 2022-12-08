@@ -1,12 +1,14 @@
 from pandas import read_csv
 import numpy as np
 from sklearn import preprocessing
-from sklearn.cluster import KMeans
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from matplotlib import pyplot as plt
-from toolbox.clusterPlot import clusterPlot
 import random
 from sklearn.model_selection import StratifiedKFold
+
+import warnings
+warnings.filterwarnings("ignore")
 
 # size of sample we want to read from dataset
 SAMPLE_SIZE = 100
@@ -50,9 +52,13 @@ def getRowsToSkip(sample_size):
     skiprows = sorted(random.sample(range(1, DATASET_SIZE), DATASET_SIZE - sample_size))
     return skiprows
 
+def encodeRoundWinner(team):
+    return 1 if team == 'CT' else 0
+
 if __name__ == '__main__':
     # read random sample of the data
     dataset = read_csv('csgo_round_snapshots.csv', header=0, skiprows=getRowsToSkip(100))
+    dataset['round_winner'] = dataset['round_winner'].apply(func=encodeRoundWinner)
     print(dataset)
 
     # attributes without class label
@@ -71,7 +77,7 @@ if __name__ == '__main__':
     X_standardized = standardize(X)
 
     # Stratified 10-fold
-    ten_fold = StratifiedKFold(n_splits=10, shuffle=True, random_state=RANDOM_SEED)
+    ten_fold = StratifiedKFold(n_splits=2, shuffle=True, random_state=RANDOM_SEED)
     for train, test in ten_fold.split(X, y):
         X_train, X_test, X_standardized_train, X_standardized_test, y_train, y_test = X[train], X[test], X_standardized[train], X_standardized[test], y[train], y[test]
 
@@ -86,15 +92,12 @@ if __name__ == '__main__':
         """
         
         # K-Means Clustering
-        kmeans = KMeans(2, random_state=RANDOM_SEED)
-        kmeans.fit(X_standardized_train)
-        # y_pred = kmeans.predict(X_standardized)
-        clusters = kmeans.labels_
-        centroids = kmeans.cluster_centers_
+        knc = KNeighborsClassifier(n_neighbors=2)
+        knc.fit(X_standardized_train, y_train)
         
-        """
-        clusterPlot(X_standardized_test, clusters, centroids, y)
-        plt.show()
-        """
-    
-    
+        y_test_pred = knc.predict(X_standardized_test)
+        
+        correct = len(y_test[y_test == y_test_pred])
+        accuracy = correct/len(y_test)
+        
+        
