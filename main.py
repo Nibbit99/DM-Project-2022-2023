@@ -44,7 +44,7 @@ def standardize(data):
 
 def getRowsToSkip(sample_size):
     # desired sample size
-    sample_size = 100 
+    sample_size = 500 
     
     # set random seed
     random.seed(RANDOM_SEED)
@@ -54,6 +54,9 @@ def getRowsToSkip(sample_size):
 
 def encodeRoundWinner(team):
     return 1 if team == 'CT' else 0
+
+def splitData(X, X_standardized, y, train, test):
+    return X[train], X[test], X_standardized[train], X_standardized[test], y[train], y[test]
 
 if __name__ == '__main__':
     # read random sample of the data
@@ -76,28 +79,36 @@ if __name__ == '__main__':
     # standardize data
     X_standardized = standardize(X)
 
-    # Stratified 10-fold
-    ten_fold = StratifiedKFold(n_splits=2, shuffle=True, random_state=RANDOM_SEED)
-    for train, test in ten_fold.split(X, y):
-        X_train, X_test, X_standardized_train, X_standardized_test, y_train, y_test = X[train], X[test], X_standardized[train], X_standardized[test], y[train], y[test]
+    # nested stratified 10-fold cross-validation
+    inner_cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=RANDOM_SEED)
+    outer_cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=RANDOM_SEED)
 
+    # outer cross validation: estimate classifier performance
+    for train_outer, test_outer in outer_cv.split(X, y):
+        X_train_outer, X_test_outer, X_standardized_train_outer, X_standardized_test_outer, y_train_outer, y_test_outer = splitData(X, X_standardized, y, train_outer, test_outer)
+
+        # inner cross validation: optimize hyperparameters
+        for train_inner, test_inner in inner_cv.split(X_test_outer, y_test_outer):
+            X_train_inner, X_test_inner, X_standardized_train_inner, X_standardized_test_inner, y_train_inner, y_test_inner = splitData(X_test_outer, X_standardized_test_outer, y_test_outer, train_inner, test_inner)
+
+            # TODO optimize for dtc: criterion, max_depth, max_depth?
+
+            # TODO optimize for knn: n_neighbors, metric
+
+        """
         # Decision Tree Classifier
         dtc = DecisionTreeClassifier(random_state=RANDOM_SEED)
         dtc.fit(X_train, y_train)
+        """
 
-        """
-        plt.figure(figsize=(20,20))
-        plot_tree(dtc, node_ids=True)
-        plt.show()
-        """
         
         # K-Means Clustering
         knc = KNeighborsClassifier(n_neighbors=2)
-        knc.fit(X_standardized_train, y_train)
+        knc.fit(X_standardized_train_outer, y_train_outer)
         
-        y_test_pred = knc.predict(X_standardized_test)
+        y_test_pred = knc.predict(X_standardized_test_outer)
         
-        correct = len(y_test[y_test == y_test_pred])
-        accuracy = correct/len(y_test)
+        correct = len(y_test_outer[y_test_outer == y_test_pred])
+        accuracy = correct/len(y_test_outer)
         
         
