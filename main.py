@@ -6,7 +6,9 @@ from sklearn.tree import DecisionTreeClassifier, plot_tree
 from matplotlib import pyplot as plt
 import random
 from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import accuracy_score
+
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -70,6 +72,13 @@ def encodeRoundWinner(team):
 def splitData(X, X_standardized, y, train, test):
     return X[train], X[test], X_standardized[train], X_standardized[test], y[train], y[test]
 
+def classifier_cm(y_test, y_pred, name):
+    cm = confusion_matrix(y_test, y_pred)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['T', 'CT'])
+    disp.plot()
+    ac = accuracy_score(y_test,y_pred)
+    plt.title('%s (AC: %s)' % (name, ac))
+
 def optimize_hyperparameters(classifier, hyperparameter, optimized_hyperparameter, optimized_accuracy, X_test, y_test, ):
     y_test_pred = classifier.predict(X_test)
 
@@ -106,12 +115,18 @@ if __name__ == '__main__':
     X_standardized = standardize(X)
 
     # nested stratified 10-fold cross-validation
-    inner_cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=RANDOM_SEED)
-    outer_cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=RANDOM_SEED)
+    total_splits = 2
+    inner_cv = StratifiedKFold(n_splits=total_splits, shuffle=True, random_state=RANDOM_SEED)
+    outer_cv = StratifiedKFold(n_splits=total_splits, shuffle=True, random_state=RANDOM_SEED)
+
+    y_test = []
+    y_pred_dtc = []
+    y_pred_knc = []
 
     # outer cross validation: estimate classifier performance
     for train_outer, test_outer in outer_cv.split(X, y):
         X_train_outer, X_test_outer, X_standardized_train_outer, X_standardized_test_outer, y_train_outer, y_test_outer = splitData(X, X_standardized, y, train_outer, test_outer)
+        y_test = [*y_test, *y_test_outer]
 
         # TODO optimize for dtc: criterion, max_depth, max_depth?
         dtc_optimized_depth = DTC_MIN_DEPTH
@@ -138,9 +153,23 @@ if __name__ == '__main__':
                 knc.fit(X_standardized_train_inner, y_train_inner)
                 
                 knc_optimized_k, knc_optimized_accuracy = optimize_hyperparameters(knc, k, knc_optimized_k, knc_optimized_accuracy, X_standardized_test_inner, y_test_inner)
+        # Decision Tree Classifier
+        dtc = DecisionTreeClassifier(random_state=RANDOM_SEED)
+        dtc.fit(X_train_outer, y_train_outer)
         
-        print("Best depth is {0}; best k is {1}".format(dtc_optimized_depth, knc_optimized_k))
-
-            
-                
+        y_test_pred_dtc = dtc.predict(X_test_outer)
+        y_pred_dtc = [*y_pred_dtc, *y_test_pred_dtc]
         
+        # K-Neighbours Classifier
+        knc = KNeighborsClassifier(n_neighbors=2)
+        knc.fit(X_standardized_train_outer, y_train_outer)
+        
+        y_test_pred_knc = knc.predict(X_standardized_test_outer)
+        y_pred_knc = [*y_pred_knc, *y_test_pred_knc]
+       
+    # plot the confusion matrix for the Decision Tree Classifier     
+    classifier_cm(y_test, y_pred_dtc, 'Decision Tree Classifier')
+    
+    # plot the confusion matrix for the K-Neighbours Classifier
+    classifier_cm(y_test, y_pred_knc, 'K-Neighbours Classifier')
+    plt.show()
