@@ -6,16 +6,28 @@ from sklearn.tree import DecisionTreeClassifier, plot_tree
 from matplotlib import pyplot as plt
 import random
 from sklearn.model_selection import StratifiedKFold
-
+from sklearn.metrics import accuracy_score
 import warnings
 warnings.filterwarnings("ignore")
 
+"""CONSTANTS"""
 # size of sample we want to read from dataset
 SAMPLE_SIZE = 100
 # size of dataset
 DATASET_SIZE = 122410
+
 # random seed used to reproduce results
 RANDOM_SEED = 0
+
+# lower bound on depth values to try for decision tree classifier
+DTC_MIN_DEPTH = 2
+# upper bound on depth values to try for decision tree classifier
+DTC_MAX_DEPTH = 20
+
+# lower bound on k values to try for the k neighbors classifier
+KNC_MIN_K = 1
+# upper bound on k values to try for the k neighbors classifier
+KNC_MAX_K = 40
 
 def oneHotEncodeMap(data):
     # create One Hot Encoder
@@ -58,6 +70,20 @@ def encodeRoundWinner(team):
 def splitData(X, X_standardized, y, train, test):
     return X[train], X[test], X_standardized[train], X_standardized[test], y[train], y[test]
 
+def optimize_hyperparameters(classifier, hyperparameter, optimized_hyperparameter, optimized_accuracy, X_test, y_test, ):
+    y_test_pred = classifier.predict(X_test)
+
+    # get the accuracy for the classifier initialized with the given hyperparameter
+    accuracy = accuracy_score(y_test, y_test_pred)
+
+    # update optimized depth and its accuracy if its accuracy is greater than the previous best accuracy
+    if accuracy > optimized_accuracy:
+        optimized_accuracy = accuracy
+        optimized_hyperparameter = hyperparameter
+
+    # return the (possibly updated) values for the optimized accuracy and hyperparameter
+    return optimized_hyperparameter, optimized_accuracy
+
 if __name__ == '__main__':
     # read random sample of the data
     dataset = read_csv('csgo_round_snapshots.csv', header=0, skiprows=getRowsToSkip(100))
@@ -87,28 +113,34 @@ if __name__ == '__main__':
     for train_outer, test_outer in outer_cv.split(X, y):
         X_train_outer, X_test_outer, X_standardized_train_outer, X_standardized_test_outer, y_train_outer, y_test_outer = splitData(X, X_standardized, y, train_outer, test_outer)
 
+        # TODO optimize for dtc: criterion, max_depth, max_depth?
+        dtc_optimized_depth = DTC_MIN_DEPTH
+        dtc_optimized_accuracy = 0
+
+        # TODO optimize for knn: n_neighbors, metric
+        knc_optimized_k = KNC_MIN_K
+        knc_optimized_accuracy = 0
+
         # inner cross validation: optimize hyperparameters
         for train_inner, test_inner in inner_cv.split(X_test_outer, y_test_outer):
             X_train_inner, X_test_inner, X_standardized_train_inner, X_standardized_test_inner, y_train_inner, y_test_inner = splitData(X_test_outer, X_standardized_test_outer, y_test_outer, train_inner, test_inner)
 
-            # TODO optimize for dtc: criterion, max_depth, max_depth?
+            # optimize depth for decision tree classifier
+            for d in range(DTC_MIN_DEPTH, DTC_MAX_DEPTH + 1):
+                dtc = DecisionTreeClassifier(random_state=RANDOM_SEED, max_depth = d)
+                dtc.fit(X_train_inner, y_train_inner)
 
-            # TODO optimize for knn: n_neighbors, metric
+                dtc_optimized_depth, dtc_optimized_accuracy = optimize_hyperparameters(dtc, d, dtc_optimized_depth, dtc_optimized_accuracy, X_test_inner, y_test_inner)
 
-        """
-        # Decision Tree Classifier
-        dtc = DecisionTreeClassifier(random_state=RANDOM_SEED)
-        dtc.fit(X_train, y_train)
-        """
+            # optimize k for k neighbors classifiers
+            for k in range(KNC_MIN_K, KNC_MAX_K + 1):
+                knc = KNeighborsClassifier(n_neighbors=k)
+                knc.fit(X_standardized_train_inner, y_train_inner)
+                
+                knc_optimized_k, knc_optimized_accuracy = optimize_hyperparameters(knc, k, knc_optimized_k, knc_optimized_accuracy, X_standardized_test_inner, y_test_inner)
+        
+        print("Best depth is {0}; best k is {1}".format(dtc_optimized_depth, knc_optimized_k))
 
-        
-        # K-Means Clustering
-        knc = KNeighborsClassifier(n_neighbors=2)
-        knc.fit(X_standardized_train_outer, y_train_outer)
-        
-        y_test_pred = knc.predict(X_standardized_test_outer)
-        
-        correct = len(y_test_outer[y_test_outer == y_test_pred])
-        accuracy = correct/len(y_test_outer)
-        
+            
+                
         
