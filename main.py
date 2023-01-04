@@ -9,6 +9,8 @@ from sklearn.model_selection import StratifiedKFold
 
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score
 
+from statsmodels.stats.contingency_tables import mcnemar
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -22,14 +24,14 @@ DATASET_SIZE = 122410
 RANDOM_SEED = 0
 
 # lower bound on depth values to try for decision tree classifier
-DTC_MIN_DEPTH = 2
+DTC_MIN_DEPTH = 10
 # upper bound on depth values to try for decision tree classifier
-DTC_MAX_DEPTH = 20
+DTC_MAX_DEPTH = 30
 
 # lower bound on k values to try for the k neighbors classifier
 KNC_MIN_K = 1
 # upper bound on k values to try for the k neighbors classifier
-KNC_MAX_K = 40
+KNC_MAX_K = 20
 
 def oneHotEncodeMap(data):
     # create One Hot Encoder
@@ -57,9 +59,6 @@ def standardize(data):
     return scaler.transform(X)
 
 def getRowsToSkip(sample_size):
-    # desired sample size
-    sample_size = 500 
-    
     # set random seed
     random.seed(RANDOM_SEED)
 
@@ -79,6 +78,24 @@ def classifier_cm(y_test, y_pred, name):
     ac = accuracy_score(y_test,y_pred)
     plt.title('%s (AC: %s)' % (name, ac))
 
+def createContingencyTable(true_class, pred_clf1, pred_clf2):
+    table = np.zeros([2,2])
+
+    # index (0, 0) stores how many times both classifiers predicted the correct label
+    table[0][0] = sum(t == p1 == p2 for t, p1, p2 in zip(true_class, pred_clf1, pred_clf2))
+    # index (1, 1) stores how many times both classifiers predicted the wrong label
+    table[1][1] = sum(t == (1-p1) == (1-p2) for t, p1, p2 in zip(true_class, pred_clf1, pred_clf2))
+    # index (1, 0) stores how many times classifier 2 predicted the correct label, but classifier 1 predicted the wrong label
+    table[1][0] = sum(t == (1-p1) == p2 for t, p1, p2 in zip(true_class, pred_clf1, pred_clf2))
+    # index (0, 1) stores how many times classifier 1 predicted the correct label, but  classifier 2 predicted the wrong label
+    table[0][1] = sum(t == p1 == (1-p2) for t, p1, p2 in zip(true_class, pred_clf1, pred_clf2))
+
+    return table
+
+
+def signTest(contingency_table):
+    return mcnemar(contingency_table, exact=False, correction=False).pvalue
+
 def optimize_hyperparameters(classifier, hyperparameter, optimized_hyperparameter, optimized_accuracy, X_test, y_test, ):
     y_test_pred = classifier.predict(X_test)
 
@@ -95,7 +112,7 @@ def optimize_hyperparameters(classifier, hyperparameter, optimized_hyperparamete
 
 if __name__ == '__main__':
     # read random sample of the data
-    dataset = read_csv('csgo_round_snapshots.csv', header=0, skiprows=getRowsToSkip(100))
+    dataset = read_csv('csgo_round_snapshots.csv', header=0, skiprows=getRowsToSkip(SAMPLE_SIZE))
     dataset['round_winner'] = dataset['round_winner'].apply(func=encodeRoundWinner)
     print(dataset)
 
@@ -115,7 +132,7 @@ if __name__ == '__main__':
     X_standardized = standardize(X)
 
     # nested stratified 10-fold cross-validation
-    total_splits = 2
+    total_splits = 10
     inner_cv = StratifiedKFold(n_splits=total_splits, shuffle=True, random_state=RANDOM_SEED)
     outer_cv = StratifiedKFold(n_splits=total_splits, shuffle=True, random_state=RANDOM_SEED)
 
@@ -137,8 +154,8 @@ if __name__ == '__main__':
         knc_optimized_accuracy = 0
 
         # inner cross validation: optimize hyperparameters
-        for train_inner, test_inner in inner_cv.split(X_test_outer, y_test_outer):
-            X_train_inner, X_test_inner, X_standardized_train_inner, X_standardized_test_inner, y_train_inner, y_test_inner = splitData(X_test_outer, X_standardized_test_outer, y_test_outer, train_inner, test_inner)
+        for train_inner, test_inner in inner_cv.split(X_train_outer, y_train_outer):
+            X_train_inner, X_test_inner, X_standardized_train_inner, X_standardized_test_inner, y_train_inner, y_test_inner = splitData(X_train_outer, X_standardized_train_outer, y_train_outer, train_inner, test_inner)
 
             # optimize depth for decision tree classifier
             for d in range(DTC_MIN_DEPTH, DTC_MAX_DEPTH + 1):
@@ -153,15 +170,16 @@ if __name__ == '__main__':
                 knc.fit(X_standardized_train_inner, y_train_inner)
                 
                 knc_optimized_k, knc_optimized_accuracy = optimize_hyperparameters(knc, k, knc_optimized_k, knc_optimized_accuracy, X_standardized_test_inner, y_test_inner)
+        
         # Decision Tree Classifier
-        dtc = DecisionTreeClassifier(random_state=RANDOM_SEED)
+        dtc = DecisionTreeClassifier(random_state=RANDOM_SEED, max_depth = dtc_optimized_depth)
         dtc.fit(X_train_outer, y_train_outer)
         
         y_test_pred_dtc = dtc.predict(X_test_outer)
         y_pred_dtc = [*y_pred_dtc, *y_test_pred_dtc]
         
         # K-Neighbours Classifier
-        knc = KNeighborsClassifier(n_neighbors=2)
+        knc = KNeighborsClassifier(n_neighbors=knc_optimized_k)
         knc.fit(X_standardized_train_outer, y_train_outer)
         
         y_test_pred_knc = knc.predict(X_standardized_test_outer)
@@ -173,3 +191,7 @@ if __name__ == '__main__':
     # plot the confusion matrix for the K-Neighbours Classifier
     classifier_cm(y_test, y_pred_knc, 'K-Neighbours Classifier')
     plt.show()
+
+    contingency_table = createContingencyTable(y_test, y_pred_dtc, y_pred_knc)
+    pvalue = signTest(contingency_table)
+    print(pvalue)
