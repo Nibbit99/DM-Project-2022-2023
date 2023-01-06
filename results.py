@@ -42,5 +42,5 @@ def results(y_test, y_pred_dtc, y_pred_knc):
 
     significant = pvalue < SIGNIFICANCE_LEVEL
 
-    print("P-value of McNemar sign test is {0}. At our significance level of {1}, this is {2}.".format(pvalue, SIGNIFICANCE_LEVEL, "significant" if significant else "not significant"))
+    print("P-value of McNemar sign test is {0}. At our significance level of {1}, this means that the performance difference between the classifiers is {2}.".format(pvalue, SIGNIFICANCE_LEVEL, "significant" if significant else "not significant"))
 

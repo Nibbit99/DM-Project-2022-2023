@@ -1,4 +1,3 @@
-"""CONSTANTS"""
 # size of sample we want to read from dataset
 SAMPLE_SIZE = 100
 # size of dataset
