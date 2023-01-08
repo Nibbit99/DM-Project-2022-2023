@@ -1,4 +1,4 @@
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score, RocCurveDisplay
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, accuracy_score
 from statsmodels.stats.contingency_tables import mcnemar
 from matplotlib import pyplot as plt
 import numpy as np

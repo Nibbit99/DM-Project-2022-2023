@@ -1,5 +1,5 @@
 # size of sample we want to read from dataset
-SAMPLE_SIZE = 1000
+SAMPLE_SIZE = 5000
 # size of dataset
 DATASET_SIZE = 122410
 

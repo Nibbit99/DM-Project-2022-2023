@@ -1,7 +1,7 @@
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.tree import DecisionTreeClassifier
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -40,6 +40,8 @@ def classification(X, X_standardized, y):
     # outer cross validation: estimate classifier performance
     for train_outer, test_outer in outer_cv.split(X, y):
         X_train_outer, X_test_outer, X_standardized_train_outer, X_standardized_test_outer, y_train_outer, y_test_outer = splitData(X, X_standardized, y, train_outer, test_outer)
+        
+        # concatenate test set in this outer CV loop to total test set
         y_test = [*y_test, *y_test_outer]
 
         # for dtc we optimize the maximum depth of the tree
@@ -73,6 +75,8 @@ def classification(X, X_standardized, y):
         dtc.fit(X_train_outer, y_train_outer)
         
         y_test_pred_dtc = dtc.predict(X_test_outer)
+
+        # concatenate predicted labels on this test set to set of all predicted labels
         y_pred_dtc = [*y_pred_dtc, *y_test_pred_dtc]
         
         # K-Neighbours Classifier
@@ -80,8 +84,11 @@ def classification(X, X_standardized, y):
         knc.fit(X_standardized_train_outer, y_train_outer)
         
         y_test_pred_knc = knc.predict(X_standardized_test_outer)
+
+        # concatenate predicted labels on this test set to set of all predicted labels
         y_pred_knc = [*y_pred_knc, *y_test_pred_knc]
 
         progress += 1
         print("Progress: {0}/{1}.".format(progress, total_splits))
+
     return y_test, y_pred_dtc, y_pred_knc
