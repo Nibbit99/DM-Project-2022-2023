@@ -34,6 +34,9 @@ def classification(X, X_standardized, y):
     y_pred_dtc = []
     y_pred_knc = []
 
+    # count how many outer CV loops have passed
+    progress = 0
+
     # outer cross validation: estimate classifier performance
     for train_outer, test_outer in outer_cv.split(X, y):
         X_train_outer, X_test_outer, X_standardized_train_outer, X_standardized_test_outer, y_train_outer, y_test_outer = splitData(X, X_standardized, y, train_outer, test_outer)
@@ -79,4 +82,6 @@ def classification(X, X_standardized, y):
         y_test_pred_knc = knc.predict(X_standardized_test_outer)
         y_pred_knc = [*y_pred_knc, *y_test_pred_knc]
 
+        progress += 1
+        print("Progress: {0}/{1}.".format(progress, total_splits))
     return y_test, y_pred_dtc, y_pred_knc
