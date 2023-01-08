@@ -39,11 +39,11 @@ def classification(X, X_standardized, y):
         X_train_outer, X_test_outer, X_standardized_train_outer, X_standardized_test_outer, y_train_outer, y_test_outer = splitData(X, X_standardized, y, train_outer, test_outer)
         y_test = [*y_test, *y_test_outer]
 
-        # TODO optimize for dtc: criterion, max_depth, max_depth?
+        # for dtc we optimize the maximum depth of the tree
         dtc_optimized_depth = DTC_MIN_DEPTH
         dtc_optimized_accuracy = 0
 
-        # TODO optimize for knn: n_neighbors, metric
+        # for knc we optimize k
         knc_optimized_k = KNC_MIN_K
         knc_optimized_accuracy = 0
 
